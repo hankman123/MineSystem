@@ -41,20 +41,46 @@ class ZoneManager
     {
         $config = Main::getInstance()->getConfig();
 
-
-        foreach($config->getAll() as $name => ["world" => $worldname, "zones" => ["min" => $min, "max" => $max], "allowed-blocks" => $allowed, "new-blocks" => $new, "timer" => $timer]){
-            $allowed_ = [];
-            foreach($allowed as $_allowed){
-                $allowed_[] = StringToItemParser::getInstance()->parse($_allowed)->getBlock()->getTypeId();
+        foreach($config->getAll() as $name => $zoneData) {
+            // Check if required keys are present
+            if (!isset($zoneData['world'], $zoneData['zones'], $zoneData['allowed-blocks'], $zoneData['new-blocks'], $zoneData['timer'])) {
+                continue; // Skip if data is incomplete
             }
-            Server::getInstance()->getWorldManager()->loadWorld($worldname);
+
+            $worldname = $zoneData['world'];
+            $min = $zoneData['zones']['min'];
+            $max = $zoneData['zones']['max'];
+            $allowed = $zoneData['allowed-blocks'];
+            $new = $zoneData['new-blocks'];
+            $timer = $zoneData['timer'];
+
+            // Convert allowed blocks to type ids
+            $allowed_ = [];
+            foreach($allowed as $_allowed) {
+                $item = StringToItemParser::getInstance()->parse($_allowed);
+                if ($item !== null) {
+                    $allowed_[] = $item->getBlock()->getTypeId();
+                }
+            }
+
+            // Load world and chunks
+            if (!Server::getInstance()->getWorldManager()->isWorldLoaded($worldname)) {
+                Server::getInstance()->getWorldManager()->loadWorld($worldname);
+            }
+
             $world = Server::getInstance()->getWorldManager()->getWorldByName($worldname);
-            for($x = $min[0];$x <= $max[0];$x++){
-                for($z = $min[2];$z <= $max[2];$z++){
+            if ($world === null) {
+                continue; // Skip if the world could not be loaded
+            }
+
+            // Load chunks
+            for ($x = $min[0]; $x <= $max[0]; $x++) {
+                for ($z = $min[2]; $z <= $max[2]; $z++) {
                     $world->loadChunk($x, $z);
                 }
             }
 
+            // Create the zone
             $this->zones[$name] = new Zone(
                 $name,
                 $world,
